@@ -2,6 +2,7 @@
 <-
     ?pos(MYX,MYY);
 	?grid_size(X,Y);
+	
 	for ( .range(I, 0, X-1)) {
 		for ( .range(J, 0, X-1)) {
 			+undiscovered(I, J);
@@ -16,12 +17,11 @@
 +step(1)
 <-
 	?pos(MYX,MYY);
-	!find_closest(MYX,MYY,MinX,MinY);
-	.print("MIN coords:",MinX,", ",MinY);
-	!astar(MYX,MYY,55,55);
-	if (noPath) {
-		.print("There is no path");
-	};
+	//!find_closest(MYX,MYY,MinX,MinY);
+	?depot(DepotX,DepotY);
+	.print("Depo je na ",DepotX,", ",DepotY);
+	!choose_direction(DepotX,DepotY);
+	!choose_dir_destination;
 	?astar_path(MYX,MYY,NextX,NextY);
 	.print("Idem do ",NextX,", ",NextY);
 	do(skip);
@@ -112,6 +112,170 @@
 	};
 	Dis=Xdis + Ydis.
 
+//0=left, 1=up, 2=right, 3=down
++!choose_direction(DestX,DestY)
+<-
+	?pos(MYX,MYY);
+	if (MYX >= DestX) {
+		XDelta=MYX-DestX;
+	};
+	if (MYX < DestX) {
+		XDelta=DestX-MYX;
+	};
+	if (MYY >= DestY) {
+		YDelta=MYY-DestY;
+	};
+	if (MYY < DestY) {
+		YDelta=DestY-MYY;
+	};
+	//horizontal movement
+	if (XDelta >= YDelta) {
+		if (MYX > DeltaX) {
+			+primary_direction(0);
+		} else {
+			+primary_direction(2);
+		};
+		if (MYY > DeltaY) {
+			+secondary_direction(1);
+		} else {
+			+secondary_direction(3);
+		}
+	//vertical movement
+	} else {
+		if (MYY > DeltaY) {
+			+primary_direction(1);
+		} else {
+			+primary_direction(3);
+		};
+		if (MYX > DeltaX) {
+			+secondary_direction(0);
+		} else {
+			+secondary_direction(2);
+		}
+	}.
+
++!choose_dir_destination
+<-
+	?primary_direction(PrimDir);
+	?secondary_direction(SecDir);
+	?grid_size(MaxX,MaxY);
+	//left, upper tiles preference
+	if (PrimDir==0 & SecDir==1) {
+		+search_pattern(0,0,MaxX-1,MaxY-1,1,1);
+		!search_by_columns;
+	//left, lower tiles preference
+	} elif (PrimDir==0 & SecDir==3){
+		+search_pattern(0,MaxY-1,MaxX-1,0,1,-1);
+		!search_by_columns;
+	//up, lefter tiles preference
+	} elif (PrimDir==1 & SecDir==0){
+		+search_pattern(0,0,MaxX-1,MaxY-1,1,1);
+		!search_by_rows;
+	//up, righter tiles preference
+	} elif (PrimDir==1 & SecDir==2){
+		+search_pattern(MaxX-1,0,0,MaxY-1,-1,1);
+		!search_by_rows;
+	//right, upper tiles preference
+	} elif (PrimDir==2 & SecDir==1){
+		+search_pattern(MaxX-1,0,0,MaxY-1,-1,1);
+		!search_by_columns;
+	//right, lower tiles preference
+	} elif (PrimDir==2 & SecDir==3){
+		.print("Som tu lol1");
+		+search_pattern(MaxX-1,MaxY-1,0,0,-1,-1);
+		!search_by_columns;
+	//down, lefter tiles preference
+	} elif (PrimDir==3 & SecDir==0){
+		+search_pattern(0,MaxY-1,MaxX-1,0,1,-1);
+		!search_by_rows;
+	//down, righter tiles preference
+	} elif (PrimDir==3 & SecDir==2){
+		.print("Som tu lol2");
+		+search_pattern(MaxX-1,MaxY-1,0,0,-1,-1);
+		!search_by_rows;
+	};
+	-primary_direction(_);
+	-secondary_direction(_).
+
++!discovered_adjacent(X,Y)
+<-
+	?grid_size(MaxX,MaxY);
+	if (X \== 0) {
+		if (not(undiscovered(X-1,Y))) {
+			+possible_destination;
+		};
+	};
+	if (Y \== 0) {
+		if (not(undiscovered(X,Y-1))) {
+			+possible_destination;
+		};
+	};
+	if (X \== MaxX-1) {
+		if (not(undiscovered(X+1,Y))) {
+			+possible_destination;
+		};
+	};
+	if (Y \== MaxY-1) {
+		if (not(undiscovered(X,Y+1))) {
+			+possible_destination;
+		};
+	}.
+	
++!search_by_columns
+<-
+	?pos(MYX,MYY);
+	?search_pattern(StartX,StartY,EndX,EndY,StepX,StepY);
+	//.print("StartX: ",StartX," StartY: ",StartY," EndX: ",EndX," EndY: ",EndY," StepX: ",StepX," StepY: ",StepY);
+	-search_pattern(StartX,StartY,EndX,EndY,StepX,StepY);
+	for ( .range(X, StartX, EndX, StepX)) {
+		for ( .range(Y, StartY, EndY, StepY)) {
+			if (not(found_dest)) {
+				!discovered_adjacent(X,Y);
+				if (possible_destination) {
+					-possible_destination;
+					!astar(MYX,MYY,X,Y);
+					if (noPath) {
+						-noPath;
+					} else {
+						+found_dest;
+					};
+				};
+			};
+		};
+	};
+	if (not(found_dest)) {
+		+noPath;
+	} else {
+		-found_dest;
+	}.
+
++!search_by_rows
+<-
+	?pos(MYX,MYY);
+	?search_pattern(StartX,StartY,EndX,EndY,StepX,StepY);
+	-search_pattern(StartX,StartY,EndX,EndY,StepX,StepY);
+	for ( .range(Y, StartY, EndY, StepY)) {
+		for ( .range(X, StartX, EndX, StepX)) {
+			if (not(found_dest)) {
+				!discovered_adjacent(X,Y);
+				if (possible_destination) {
+					-possible_destination;
+					!astar(MYX,MYY,X,Y);
+					if (noPath) {
+						-noPath;
+					} else {
+						+found_dest;
+					};
+				};
+			};
+		};
+	};
+	if (not(found_dest)) {
+		+noPath;
+	} else {
+		-found_dest;
+	}.
+
 //=============================================================================
 //THIS IS A STAR ALGORITHM
 //=============================================================================
@@ -122,6 +286,7 @@
 	+best_next_astar(StartX,StartY);
 	+continueIter;
 	while (continueIter) {
+		?best_next_astar(BestX1,BestY1);
 		!test_neighbour_tiles(EndX,EndY);
 		//check if end was reached
 		if (astar_score(EndX,EndY,_,_,_,_)) {
@@ -135,14 +300,20 @@
 		} else {
 			-best_next_astar(_,_);
 			!find_next_astar;
+			?best_next_astar(BestX,BestY);
+			.print("Best: ",BestX,", ",BestY);
 			if (not(found_next_astar)) {
-				-continueIter
-				+noPath
+				-continueIter;
+				+noPath;
+				-astar_score(_,_,_,_,_,_);
+				-tested_astar(_,_);
+				-best_next_astar(_,_);
 			} else {
-				-found_next_astar
+				-found_next_astar;
 			};
 		};
 	}.
+
 +!astar
 <-
 	.print("Sorry m8").
@@ -225,6 +396,7 @@
 +!find_astar_path(StartX,StartY,EndX,EndY)
 <-
 	+continuePath;
+	//.print("Start: ",StartX,", ",StartY," End: ",EndX,", ",EndY);
 	+this_astar_point(EndX,EndY);
 	while (continuePath) {
 		!find_next_point;
@@ -251,16 +423,18 @@
 	+next_astar(SomeX,SomeY);
 	?grid_size(MaxX,MaxY);
 	for ( .range(I, 0, MaxX-1)) {
-		for ( .range(J, 0, MaxX-1)) {
+		for ( .range(J, 0, MaxY-1)) {
 			?next_astar(NextX,NextY);
 			?astar_score(NextX,NextY,CurrBestStart,CurrBestEnd,_,_);
 			if (astar_score(I,J,_,_,_,_)){
 				?astar_score(I,J,ThisStart,ThisEnd,_,_);
-				if ((CurrBestStart+CurrBestEnd) > (ThisStart+ThisEnd) & not(tested_astar(I,J))) {
+				//.print("Current next: ",NextX,", ",NextY," score: ",CurrBestStart,", ",CurrBestEnd);
+				//.print("Current considered: ",I,", ",J," score: ",ThisStart,", ",ThisEnd);
+				if (((CurrBestStart+CurrBestEnd) > (ThisStart+ThisEnd)) & not(tested_astar(I,J))) {
 					-next_astar(NextX,NextY);
 					+next_astar(I,J);
 					+found_next_astar;
-				} elif (((CurrBestStart+CurrBestEnd) == (ThisStart+ThisEnd)) & (CurrBestEnd > ThisEnd) & not(tested_astar(I,J))){
+				} elif (((CurrBestStart+CurrBestEnd) == (ThisStart+ThisEnd)) & (CurrBestEnd >= ThisEnd) & not(tested_astar(I,J))){
 					-next_astar(NextX,NextY);
 					+next_astar(I,J);
 					+found_next_astar;
